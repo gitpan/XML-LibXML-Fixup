@@ -1,5 +1,8 @@
 Revision history for XML::LibXML::Fixup.
 
+0.03  Thu Sept 26 12:28 BST 2002
+	- returns 1 (!!!)
+	- spelling mistake corrected
 0.02  Thu Sept 26 12:13 BST 2002
 	- changes parameters to add_fixup
 	- altered tests accordingly

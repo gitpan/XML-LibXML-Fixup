@@ -5,7 +5,7 @@ use Carp;
 use XML::LibXML;
 use vars qw ( $VERSION @ISA );
 
-$VERSION = '0.02';
+$VERSION = '0.03';
 @ISA = qw ( XML::LibXML );
 
 
@@ -201,6 +201,8 @@ sub get_last_error
     return $err;
 }
 
+1;
+
 __END__
 
 =head1 NAME
@@ -309,7 +311,7 @@ be used to retrieve the most recent error.
 
 Turns off (or on) the throwing of exceptions. Defaults to on. When exceptions are thrown, 
 the parser will die (through croak()) when XML cannot be parsed or validated (only after all
-fixups have been applied and parsing still fails). Cuch an exception can be trapped in an 
+fixups have been applied and parsing still fails). Such an exception can be trapped in an 
 eval() block. This is similar to the default behaviour of XML::LibXML. 
 When exceptions are being suppressed, the parser will not call die() after failing to parse invalid
 XML. The validity of XML must, therefore, be checked using $v-E<gt>valid().
