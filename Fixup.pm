@@ -5,7 +5,7 @@ use Carp;
 use XML::LibXML;
 use vars qw ( $VERSION @ISA );
 
-$VERSION = '0.01';
+$VERSION = '0.02';
 @ISA = qw ( XML::LibXML );
 
 
@@ -19,8 +19,7 @@ sub new
     $self->{_errors} = [];
     $self->{_error_cursor} = 0;
     $self->{_is_valid} = 0;
-    $self->{_fixup_search} = [];
-    $self->{_fixup_replace} = [];
+    $self->{_fixup} = [];
     $self->{_fixup_description} = [];
     $self->{_fixups_applied} = [];
     $self->{_fixup_cursor} = 0;
@@ -48,18 +47,24 @@ sub fixed_up
 
 sub add_fixup
 {
-    my ($self, $search, $replace, $desc) = @_;
-    $search = eval { qr/$search/ } || croak("first parameter is not a valid regex");
-    push @{$self->{_fixup_search}}, $search;
-    push @{$self->{_fixup_replace}}, $replace;
+    my ($self, $fixup, $desc) = @_;
+    my $filter;
+    if (ref($fixup) eq 'CODE'){
+	$filter = $fixup;
+    } else {
+	eval('$filter = sub { my $xml = shift;'."\n".
+	     '$xml =~ '.$fixup.";\n".
+	     'return $xml;'."\n}")
+	    || croak("not a regex or subroutine reference");
+    }
+    push @{$self->{_fixup}}, $filter;
     push @{$self->{_fixup_description}}, $desc;
 }
 
 sub clear_fixups
 {
     my $self = $_[0];
-    $self->{_fixup_search} = [];
-    $self->{_fixup_replace} = [];
+    $self->{_fixup} = [];
     $self->{_fixup_description} = [];
     $self->{_fixups_applied} = [];
     $self->{_fixup_cursor} = 0;
@@ -67,16 +72,15 @@ sub clear_fixups
 
 sub _do_fixup
 {
-    my ($self,$string) = @_;
-    my $search = $self->{_fixup_search}->[$self->{_fixup_cursor}];
-    my $replace = $self->{_fixup_replace}->[$self->{_fixup_cursor}];
-    if ($string =~ /$search/)
+    my ($self,$xml) = @_;
+    my $fixup = $self->{_fixup}->[$self->{_fixup_cursor}];
+    my $fixed_xml = $fixup->($xml);
+    if ($fixed_xml ne $xml)
     {
-	$string =~ s/$search/$replace/g;
 	push @{$self->{_fixups_applied}}, $self->{_fixup_cursor};
     }
     $self->{_fixup_cursor}++;
-    return $string;
+    return $fixed_xml;
 }
 
 #################################################################
@@ -95,7 +99,7 @@ sub parse_string
     # apply fixups one-by-one
     while(
 	  (!$self->valid()) && 
-	  ($self->{_fixup_cursor} <= $#{$self->{_fixup_search}})
+	  ($self->{_fixup_cursor} <= $#{$self->{_fixup}})
 	  )
     {
 	$string = $self->_do_fixup($string);
@@ -249,23 +253,20 @@ there are no more fixups to be applied.
 
 =over 4
 
-=item $v-E<gt>add_fixup($search,$replace,$description)
+=item $v-E<gt>add_fixup($fixup,$description)
 
-Adds a new fixup. $search is a regular expression - either a string or a quoted regular expression
-(see "Regexp Quote-Like Operators" in perlop). $replace is the text to replace text matching the $search
-pattern. $description is a description of the substitution, which will be returned by $v-E<gt>fixed_up() when
-called in list context. The following two fixups are similar, in that they both substiture upper-case
-closing paragraph tags with the lower-case equivalents. The second form will treat the XML as if it were
-a single line.
+Adds a new fixup. $fixup must be a substitution regular expression or subroutine reference. If $fixup
+is a subroutine reference, it must act as a fliter to its first parameter, as shown in the second 
+example (below). $description is a description of the substitution, which will be returned by 
+$v-E<gt>fixed_up() when called in list context. The following two fixups are similar, in that they 
+both substitute upper-case closing paragraph tags with the lower-case equivalents.
 
-  $v->add_fixup('</P>', '</p>', 'upper-case close-para tags');
-  $v->add_fixup(qr!</P>!s, '</p>', 'upper-case close-para tags');
-
-Internally to the module, the following substitution is performed during fixup:
-
-  $xml =~ s/$search/$replace/g;
-
-At present, capturing of patterns is not supported.
+  $v->add_fixup('s!</P>!</p>!gs', 'upper-case close-para tags');
+  $v->add_fixup(sub{
+                    my $xml = shift;
+                    $xml =~ s#</P>#</p>#gs;
+                    return $xml;
+                   }, 'upper-case close-para tags');
 
 =item $v-E<gt>clear_fixups()
 
@@ -280,8 +281,8 @@ is deemed to have been applied if the search regex (first parameter to $v-E<gt>a
 Note that this doesn't indicate whether the XML was valid after fixing up. Use in conjunction 
 with $v-E<gt>valid() to check whether fixups were necessary to parse the XML.
 
-  $v->add_fixup('</P>', '</p>', 'upper-case close-para tags');
-  $v->add_fixup(qr!</?foobar/?>!is, '', '<FoObAr> tags');
+  $v->add_fixup('s#</P>#</p>#gs', 'upper-case close-para tags');
+  $v->add_fixup('s#</?foobar/?>##gis', 'remove <FoObAr> tags');
   $v->parse_string($xml);
   if ($v->valid()){
     if ($v->fixed_up()){
@@ -342,8 +343,6 @@ The only XML::LibXML parsing function currently supported is $v->parse_string($x
 =head1 SEE ALSO
 
 L<XML::LibXML> - used by this module to validate XML.
-
-L<perlop> - how to quote a regular expression using qr//.
 
 =head1 AUTHOR
 

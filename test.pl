@@ -110,9 +110,9 @@ ok(!$v->next_error(), 'but now they don\'t');
 ok(!$v->fixed_up(), 'no fixups applied');
 
 diag('Fixing first bad XML file');
-$v->add_fixup('<wrong-tag/>', '', 'removing <wrong_tag/>');
-$v->add_fixup('<wrong-tag/>', '', 'removing <wrong_tag/>');
-$v->add_fixup('<wrong-tag/>', '', 'removing <wrong_tag/>');
+$v->add_fixup('s#<wrong-tag/>##gs', 'removing <wrong_tag/>');
+$v->add_fixup('s#<wrong-tag/>##gs', 'removing <wrong_tag/>');
+$v->add_fixup('s#<wrong-tag/>##gs', 'removing <wrong_tag/>');
 $v->validation(0);
 $v->parse_string($xml);
 ok($v->valid(), 'badfootballnews.xml parses');
@@ -137,9 +137,9 @@ open FOOTY,"<sampleXML/badfootballlatestnews.xml" or die("couldn't open");
 }
 close FOOTY;
 
-$v->add_fixup('<wrong-tag/>', '', 'removing <wrong_tag/>');
-$v->add_fixup('<wrong-tag/>', '', 'removing <wrong_tag/>');
-$v->add_fixup('<wrong-tag/>', '', 'removing <wrong_tag/>');
+$v->add_fixup('s#<wrong-tag/>##gs', 'removing <wrong_tag/>');
+$v->add_fixup('s#<wrong-tag/>##gs', 'removing <wrong_tag/>');
+$v->add_fixup('s#<wrong-tag/>##gs', 'removing <wrong_tag/>');
 ok(!$v->throw_exceptions(), 'throw_exceptions off');
 ok($v->throw_exceptions(1), 'throw_exceptions on');
 $v->validation(0);
@@ -158,8 +158,10 @@ ok(!$v->fixed_up(), 'no fixups applied');
 $v->clear_fixups();
 
 diag('Fixing second bad XML file');
-$v->add_fixup('</para>', '</Para>', 'fixing lower-case </para> tags');
-$v->add_fixup('<wrong-tag/>', '', 'removing <wrong_tag/>');
+$v->add_fixup('s#</para>#</Para>#gs', 'fixing lower-case </para> tags');
+$v->add_fixup('s#<wrong-tag/>##gs', 'removing <wrong_tag/>');
+$v->add_fixup('s#<wrong-tag/>##gs', 'removing <wrong_tag/>');
+$v->add_fixup('s#<wrong-tag/>##gs', 'removing <wrong_tag/>');
 $v->validation(0);
 $v->parse_string($xml);
 ok($v->valid(), 'badfootballlatestnews.xml parses');
@@ -168,8 +170,12 @@ is(scalar $v->fixed_up(),1, 'one fixup has been applied');
 $v->clear_fixups();
 ok(!$v->fixed_up(), 'fixups have been cleared');
 
-$v->add_fixup(qr!</para>!s, "</Para>", 'fixing lower-case </para> tags');
-$v->add_fixup(qr!</?foobar/?>!is, '', 'removing <foobar> tags');
+$v->add_fixup(sub{
+    my $xml = shift;
+    $xml =~ s!(</?)para>!$1Para>!gs;
+    return $xml;
+}, 'upper-case para tags');
+$v->add_fixup('s#</?foobar/?>##sig', 'removing <foobar> tags');
 $v->validation(1);
 $v->parse_string($xml);
 ok($v->valid(), 'badfootballlatestnews.xml validates');
